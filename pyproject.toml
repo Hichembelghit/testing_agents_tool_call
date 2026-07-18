@@ -1,0 +1,17 @@
+[project]
+name = "testing-agents-tool-call"
+version = "0.1.0"
+description = "Tool-call pattern agent for tweet QA with LangChain create_agent"
+requires-python = ">=3.12"
+dependencies = [
+    "langchain>=1.3.13",
+    "langchain-deepseek>=1.1.0",
+    "langgraph>=1.2.9",
+    "langsmith>=0.10.2",
+    "python-dotenv>=1.2.2",
+    "pydantic>=2.13.4",
+    "psycopg2-binary>=2.9.10",
+    "sentence-transformers>=3.4.1",
+    "sqlalchemy>=2.0.51",
+    "pgvector>=0.5.0",
+]
