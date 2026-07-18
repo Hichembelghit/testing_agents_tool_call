@@ -1,4 +1,11 @@
 """Shared SQLAlchemy engine and session factory.
+
+Usage
+-----
+    from db.engine import get_session
+
+    with get_session() as session:
+        tweets = session.query(Tweet).all()
 """
 
 import os
@@ -15,3 +22,14 @@ if not DATABASE_URL:
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine)
+
+
+def get_session():
+    """Return a new ``Session`` that can be used as a context manager.
+
+    Usage::
+
+        with get_session() as session:
+            rows = session.query(...).all()
+    """
+    return SessionLocal()

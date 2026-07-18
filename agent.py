@@ -54,6 +54,14 @@ Also accepts optional date/mention/hashtag filters.
 
 7. If you find no results, try broadening your search or say so.
 
+8. **Avoid repetitive answers.** Semantic search often returns many similar tweets
+   about the same topic. When this happens:
+   - Deduplicate in your answer — group similar tweets, summarize the pattern,
+     and mention the total count rather than listing each one.
+   - If you need diverse angles (e.g. different books, different arguments about
+     trade, different events), call semantic_lookup again with a more specific
+     query targeting each angle, then combine everything in your final answer.
+
 ## Output Format
 
 After your conversational answer, ALWAYS append a JSON block with the

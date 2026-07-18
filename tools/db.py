@@ -1,25 +1,12 @@
 """Shared database session helper for lookup tools.
 """
 
-from collections.abc import Iterator
-from contextlib import contextmanager
 from typing import Any
 
 from sqlalchemy import Inspector
-from sqlalchemy.orm import Session
 
-from db.engine import SessionLocal
+from db.engine import get_session
 from db.models import Base
-
-
-@contextmanager
-def get_session() -> Iterator[Session]:
-    """Yield a SQLAlchemy ``Session`` and auto-close on exit."""
-    session = SessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
 
 
 def row_to_dict(row, *, exclude: set[str] | None = None) -> dict[str, Any]:
