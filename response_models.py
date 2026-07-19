@@ -1,5 +1,8 @@
 """Pydantic models for structured agent output."""
 
+import json
+import re
+
 from pydantic import BaseModel, Field
 
 
@@ -31,3 +34,15 @@ class AgentResponse(BaseModel):
         default_factory=list,
         description="List of matching tweets (may be empty for count-only queries)",
     )
+
+    @classmethod
+    def from_json_block(cls, raw: str) -> "AgentResponse | None":
+        """Extract and validate a ```json ... ``` block from agent output."""
+        match = re.search(r"```json\s*\n?(.*?)```", raw, re.DOTALL)
+        if not match:
+            return None
+        try:
+            data = json.loads(match.group(1).strip())
+            return cls.model_validate(data)
+        except (json.JSONDecodeError, ValueError):
+            return None

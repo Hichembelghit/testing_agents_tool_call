@@ -5,7 +5,7 @@ from typing import Any
 
 from sqlalchemy import Inspector
 
-from db.engine import get_session
+from db.models import get_session
 from db.models import Base
 
 

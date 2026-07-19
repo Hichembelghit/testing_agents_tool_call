@@ -1,17 +1,46 @@
-"""SQLAlchemy ORM models for the tweets database.
+"""SQLAlchemy engine, session factory, and ORM models.
+
+Usage
+-----
+    from db.models import get_session
+
+    with get_session() as session:
+        rows = session.query(Tweet).all()
 
 Tables
 ------
 - ``Tweet``         — core tweet data
 - ``TweetEmbedding`` — pgvector embeddings per model
-
-Uses PostgreSQL-specific types: ARRAY, JSONB, TIMESTAMPTZ, and pgvector.
 """
 
+import os
+
+from dotenv import load_dotenv
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Column, ForeignKey, Index, Integer, String, Text, func as sa_func
+from sqlalchemy import Column, ForeignKey, Index, Integer, String, Text, create_engine, func as sa_func
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP
-from sqlalchemy.orm import DeclarativeBase, relationship
+from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
+
+# ── Engine & session ───────────────────────────────────────────────
+load_dotenv()
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL not found in .env")
+
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+SessionLocal = sessionmaker(bind=engine)
+
+
+def get_session():
+    """Return a new ``Session`` that can be used as a context manager.
+
+    Usage::
+
+        with get_session() as session:
+            rows = session.query(...).all()
+    """
+    return SessionLocal()
 
 
 class Base(DeclarativeBase):

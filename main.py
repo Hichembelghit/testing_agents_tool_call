@@ -4,9 +4,6 @@ The agent returns structured output parsed from a JSON block in the response
 and validated against the AgentResponse Pydantic schema.
 """
 
-import json
-import re
-
 from dotenv import load_dotenv
 
 from agent import agent
@@ -16,21 +13,6 @@ from response_models import AgentResponse
 def _truncate(text: str, max_len: int) -> str:
     """Truncate text with an ellipsis if it exceeds max_len."""
     return text if len(text) <= max_len else text[: max_len - 3] + "..."
-
-
-def _parse_agent_response(raw: str) -> AgentResponse | None:
-    """Extract and validate JSON block from agent response."""
-    # Find ```json ... ``` block
-    match = re.search(
-        r"```json\s*\n?(.*?)```", raw, re.DOTALL
-    )
-    if not match:
-        return None
-    try:
-        data = json.loads(match.group(1).strip())
-        return AgentResponse.model_validate(data)
-    except (json.JSONDecodeError, ValueError):
-        return None
 
 
 load_dotenv()
@@ -58,7 +40,7 @@ while True:
     raw = last.get("content", "") if isinstance(last, dict) else last.content
 
     # Try to parse structured JSON; fall back to raw text
-    structured = _parse_agent_response(raw)
+    structured = AgentResponse.from_json_block(raw)
 
     if structured is None:
         # Fallback: display the raw answer text
