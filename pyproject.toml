@@ -17,4 +17,5 @@ dependencies = [
     "alembic>=1.18.5",
     "fastapi>=0.139.2",
     "uvicorn>=0.51.0",
+    "streamlit>=1.59.2",
 ]

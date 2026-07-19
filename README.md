@@ -2,7 +2,7 @@
 
 A LangChain agent that answers questions about Donald Trump's tweets using a **tool-call loop** pattern. The LLM decides which tool to call and when to answer directly — no hardcoded routing.
 
-> **Stack:** LangChain `create_agent` · PostgreSQL + pgvector · SQLAlchemy · Sentence Transformers
+> **Stack:** LangChain `create_agent` · DeepSeek V4 Flash · PostgreSQL + pgvector · SQLAlchemy · Sentence Transformers · FastAPI · Streamlit
 
 ## Architecture
 
@@ -12,6 +12,16 @@ User question → create_agent loop:
 ```
 
 No classifier, no planner, no judgment node. The LLM owns the full decision loop.
+
+Structured output is returned as a ` ```json` block in the agent's response, parsed by `AgentResponse.from_json_block()`.
+
+## Interfaces
+
+| Interface | Command |
+|---|---|
+| **CLI** | `uv run python main.py` |
+| **Streamlit** | `uv run streamlit run streamlit_app.py` |
+| **FastAPI** | `uv run uvicorn api:app --reload` |
 
 ## Tools
 
@@ -31,8 +41,23 @@ uv sync
 # Copy and fill in your credentials
 cp .env.example .env
 
-# Run the agent
+# Run the agent (choose your interface)
 uv run python main.py
+```
+
+## Database Migrations
+
+Alembic is configured for schema changes:
+
+```bash
+# Generate a new migration after model changes
+uv run alembic revision --autogenerate -m "description"
+
+# Apply pending migrations
+uv run alembic upgrade head
+
+# Create tables from scratch (no existing DB)
+uv run python -m db.setup_db
 ```
 
 ## Example Questions
@@ -51,13 +76,20 @@ uv run python main.py
 ```
 ├── agent.py                     # create_agent setup with system prompt
 ├── main.py                      # CLI entrypoint
+├── api.py                       # FastAPI server
+├── streamlit_app.py             # Streamlit chat UI
+├── response_models.py           # Pydantic schemas + JSON parser
 ├── db/
-│   ├── models.py                # ORM: Tweet, TweetEmbedding
-│   └── engine.py                # SQLAlchemy engine
+│   ├── models.py                # ORM: engine, session, Tweet, TweetEmbedding
+│   └── setup_db.py              # CLI to create tables from scratch
+├── alembic/
+│   ├── env.py                   # Alembic config (reads DATABASE_URL from .env)
+│   └── versions/                # Migration files
 ├── tools/
 │   ├── db.py                    # Shared session helper
 │   ├── relational_lookup.py     # @tool with Pydantic schema
 │   └── semantic_lookup.py       # @tool with Pydantic schema
+├── scripts/                     # Utility scripts
 ├── pyproject.toml
 └── .env.example
 ```
