@@ -96,6 +96,34 @@ uv run alembic upgrade head
 uv run python -m db.setup_db
 ```
 
+## Deployment
+
+### Local testing with Docker
+
+```bash
+# Make sure .env has your Supabase DATABASE_URL
+docker compose up --build
+```
+
+Streamlit starts on `http://localhost:8080` and connects directly to your Supabase database.
+
+### DigitalOcean App Platform
+
+1. **Push the repo** to GitHub/GitLab.
+2. **Create a new App** in the DO App Platform, connect your repo.
+3. **Set environment variables:**
+   - `DATABASE_URL` — your Supabase connection string (`postgresql://user:pass@host:6543/postgres`)
+4. **Run migrations** via the DO Console:
+   ```bash
+   uv run alembic upgrade head
+   ```
+
+The `Dockerfile` auto-detects the `PORT` environment variable DO sets. No additional config needed.
+
+### Future — FastAPI
+
+A separate `Dockerfile.api` can be added later to deploy the FastAPI backend as a second service on DO App Platform.
+
 ## Example Questions
 
 | Category | Example |

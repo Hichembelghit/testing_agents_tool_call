@@ -1,0 +1,15 @@
+# ── Local dev against Supabase ─────────────────────────────────────
+# Usage: docker compose up --build
+#
+# Your .env file must have DATABASE_URL set to your Supabase
+# connection string (postgresql://user:pass@host:6543/postgres).
+
+services:
+  streamlit:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      - PORT=8080
