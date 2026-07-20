@@ -1,31 +1,46 @@
-"""relational_lookup: @tool for exact SQL-style queries over the tweets table.
+"""relational_lookup: @tool for batched, concurrent SQL queries over tweets.
+
+Accepts **multiple operations** in a single call and runs them
+concurrently within one database session using ``asyncio.gather()``.
 
 Usage
 -----
     from tools.relational_lookup import relational_lookup
 
+    # Single operation (backward compatible)
     result = await relational_lookup.ainvoke({
-        "operation": "select",
-        "filters": {"min_retweets": 1000},
-        "order_by": "retweets",
-        "order_direction": "desc",
-        "limit": 5,
+        "operations": [{"operation": "select", "min_retweets": 1000, "limit": 5}]
+    })
+
+    # Multiple concurrent operations
+    result = await relational_lookup.ainvoke({
+        "operations": [
+            {"operation": "count"},
+            {"operation": "select", "order_by": "retweets", "limit": 3},
+            {"operation": "aggregate", "min_favorites": 100},
+        ]
     })
 """
 
+import asyncio
 import json
 from typing import Any
 
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, func, select, true
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import Tweet
-from tools.db import get_session
+from db.models import Tweet, get_async_session
 
 
-class RelationalLookupParams(BaseModel):
-    """Parameters for a deterministic SQL lookup against the tweets table."""
+# ════════════════════════════════════════════════════════════════════
+#  Pydantic schemas
+# ════════════════════════════════════════════════════════════════════
+
+
+class RelationalOperation(BaseModel):
+    """A single lookup operation against the tweets table."""
 
     operation: str = Field(
         default="select",
@@ -73,78 +88,117 @@ class RelationalLookupParams(BaseModel):
     )
 
 
-@tool(args_schema=RelationalLookupParams)
-def relational_lookup(
-    operation: str = "select",
-    ids: list[str] = [],
-    date_from: str | None = None,
-    date_to: str | None = None,
-    mentions_contains: list[str] = [],
-    hashtags_contains: list[str] = [],
-    min_retweets: int | None = None,
-    min_favorites: int | None = None,
-    order_by: str | None = None,
-    order_direction: str = "desc",
-    limit: int = 50,
-) -> str:
-    """Query the tweets table by metadata filters: date range, mentions, hashtags, engagement thresholds. Returns a JSON summary of matching rows."""
-    filters: dict[str, Any] = {}
-    if date_from:
-        filters["date_from"] = date_from
-    if date_to:
-        filters["date_to"] = date_to
-    if mentions_contains:
-        filters["mentions_contains"] = mentions_contains
-    if hashtags_contains:
-        filters["hashtags_contains"] = hashtags_contains
-    if min_retweets is not None:
-        filters["min_retweets"] = min_retweets
-    if min_favorites is not None:
-        filters["min_favorites"] = min_favorites
+class RelationalLookupParams(BaseModel):
+    """Parameters for batched SQL lookups against the tweets table."""
 
-    conditions = _build_conditions(filters, ids)
+    operations: list[RelationalOperation] = Field(
+        min_length=1,
+        description="List of operations to execute concurrently in a single database session",
+    )
+
+
+# ════════════════════════════════════════════════════════════════════
+#  Tool
+# ════════════════════════════════════════════════════════════════════
+
+
+@tool(args_schema=RelationalLookupParams)
+async def relational_lookup(
+    operations: list[dict] | None = None,
+) -> str:
+    """Execute one or more SQL queries against the tweets table concurrently.
+
+    Accepts a list of operations, each with filters like date range,
+    mentions, hashtags, engagement thresholds, ordering, and limit.
+    All operations run **concurrently** in a single database session.
+    Returns a JSON object with one result per operation.
+    """
+    if not operations:
+        return json.dumps({"results": []})
+
+    ops = [RelationalOperation(**op) if isinstance(op, dict) else op for op in operations]
+
+    async with get_async_session() as session:
+        tasks = [_execute_single_op(op, session) for op in ops]
+        results = await asyncio.gather(*tasks)
+
+    return json.dumps({"results": results})
+
+
+# ════════════════════════════════════════════════════════════════════
+#  Internal: execute one operation
+# ════════════════════════════════════════════════════════════════════
+
+
+async def _execute_single_op(
+    op: RelationalOperation,
+    session: AsyncSession,
+) -> dict[str, Any]:
+    """Execute one relational lookup and return its result dict."""
+    filters: dict[str, Any] = {}
+    if op.date_from:
+        filters["date_from"] = op.date_from
+    if op.date_to:
+        filters["date_to"] = op.date_to
+    if op.mentions_contains:
+        filters["mentions_contains"] = op.mentions_contains
+    if op.hashtags_contains:
+        filters["hashtags_contains"] = op.hashtags_contains
+    if op.min_retweets is not None:
+        filters["min_retweets"] = op.min_retweets
+    if op.min_favorites is not None:
+        filters["min_favorites"] = op.min_favorites
+
+    conditions = _build_conditions(filters, op.ids)
     where_clause = and_(*conditions) if conditions else true()
 
-    with get_session() as session:
-        if operation == "count":
-            stmt = select(func.count(Tweet.id)).where(where_clause)
-            count = session.execute(stmt).scalar() or 0
-            return json.dumps({"rows": [], "row_count": count})
+    if op.operation == "count":
+        stmt = select(func.count(Tweet.id)).where(where_clause)
+        count = (await session.execute(stmt)).scalar() or 0
+        return {"operation": "count", "rows": [], "row_count": count}
 
-        elif operation == "aggregate":
-            stmt = select(
-                func.count(Tweet.id).label("row_count"),
-                func.coalesce(func.avg(Tweet.retweets), 0).label("avg_retweets"),
-                func.coalesce(func.avg(Tweet.favorites), 0).label("avg_favorites"),
-                func.coalesce(func.sum(Tweet.retweets), 0).label("sum_retweets"),
-                func.coalesce(func.sum(Tweet.favorites), 0).label("sum_favorites"),
-            ).where(where_clause)
-            row = session.execute(stmt).one()
-            return json.dumps({"rows": [dict(row._mapping)], "row_count": row.row_count})
+    elif op.operation == "aggregate":
+        stmt = select(
+            func.count(Tweet.id).label("row_count"),
+            func.coalesce(func.avg(Tweet.retweets), 0).label("avg_retweets"),
+            func.coalesce(func.avg(Tweet.favorites), 0).label("avg_favorites"),
+            func.coalesce(func.sum(Tweet.retweets), 0).label("sum_retweets"),
+            func.coalesce(func.sum(Tweet.favorites), 0).label("sum_favorites"),
+        ).where(where_clause)
+        row = (await session.execute(stmt)).one()
+        return {
+            "operation": "aggregate",
+            "rows": [dict(row._mapping)],
+            "row_count": row.row_count,
+        }
 
-        elif operation == "fetch_by_ids":
-            if not ids:
-                return json.dumps({"rows": [], "row_count": 0})
-            stmt = select(Tweet).where(where_clause)
-            rows = session.execute(stmt).scalars().all()
-            by_id = {tweet.id: tweet for tweet in rows}
-            result = [_tweet_to_dict(by_id[tid]) for tid in ids if tid in by_id]
-            return json.dumps({"rows": result, "row_count": len(result)})
+    elif op.operation == "fetch_by_ids":
+        if not op.ids:
+            return {"operation": "fetch_by_ids", "rows": [], "row_count": 0}
+        stmt = select(Tweet).where(where_clause)
+        rows = (await session.execute(stmt)).scalars().all()
+        by_id = {tweet.id: tweet for tweet in rows}
+        result = [_tweet_to_dict(by_id[tid]) for tid in op.ids if tid in by_id]
+        return {"operation": "fetch_by_ids", "rows": result, "row_count": len(result)}
 
-        else:  # select (default)
-            count_stmt = select(func.count(Tweet.id)).where(where_clause)
-            total = session.execute(count_stmt).scalar() or 0
-            stmt = (
-                _apply_ordering(
-                    select(Tweet).where(where_clause),
-                    order_by,
-                    order_direction,
-                )
-                .limit(limit)
+    else:  # select (default)
+        count_stmt = select(func.count(Tweet.id)).where(where_clause)
+        total = (await session.execute(count_stmt)).scalar() or 0
+        stmt = (
+            _apply_ordering(
+                select(Tweet).where(where_clause),
+                op.order_by,
+                op.order_direction,
             )
-            rows = session.execute(stmt).scalars().all()
-            result = [_tweet_to_dict(t) for t in rows]
-            return json.dumps({"rows": result, "row_count": total})
+            .limit(op.limit)
+        )
+        rows = (await session.execute(stmt)).scalars().all()
+        result = [_tweet_to_dict(t) for t in rows]
+        return {
+            "operation": op.operation or "select",
+            "rows": result,
+            "row_count": total,
+        }
 
 
 # ════════════════════════════════════════════════════════════════════

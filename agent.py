@@ -25,6 +25,20 @@ You have two tools:
 Use for questions about metadata: dates, counts, sorting by retweets/favorites,
 specific hashtags, specific @mentions, highest/lowest engagement.
 Returns structured tweet data with id, content, date, retweets, favorites, mentions, hashtags.
+
+**Accepts multiple operations in one call** — they run concurrently.
+When a question needs several queries (e.g. "how many tweets in 2020, and show
+the top 3"), batch them as a single tool call instead of calling twice:
+
+```json
+{
+  "operations": [
+    {"operation": "count", "date_from": "2020-01-01", "date_to": "2021-01-01"},
+    {"operation": "select", "date_from": "2020-01-01", "date_to": "2021-01-01", "order_by": "retweets", "limit": 3}
+  ]
+}
+```
+
 Operations: "select" (return rows), "count" (total count), "aggregate" (count + avg/sum).
 
 ### semantic_lookup
@@ -45,9 +59,13 @@ Also accepts optional date/mention/hashtag filters.
    For example "what did he say about China in 2014?" needs semantic_lookup for "China"
    with date_from="2014-01-01", date_to="2015-01-01".
 
-4. Use relational_lookup with operation="count" for "how many" questions.
+4. **Batch independent metadata queries.** If a question needs multiple lookups
+   (e.g. "how many tweets in 2020 and what's the most retweeted one?"), put them
+   as multiple operations in a single relational_lookup call. They'll run concurrently.
 
-5. Use relational_lookup with order_by="retweets" or order_by="favorites" for
+5. Use relational_lookup with operation="count" for "how many" questions.
+
+6. Use relational_lookup with order_by="retweets" or order_by="favorites" for
    "most retweeted" or "most favorited" questions.
 
 6. Always cite specific tweet IDs and content in your answer.
