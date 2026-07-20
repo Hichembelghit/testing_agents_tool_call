@@ -16,7 +16,7 @@ import os
 
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 from sqlalchemy import and_, select, true
 
 from db.models import Tweet, TweetEmbedding
@@ -31,7 +31,7 @@ _model = None
 def _get_model():
     global _model
     if _model is None:
-        _model = SentenceTransformer(EMBEDDING_MODEL)
+        _model = TextEmbedding(EMBEDDING_MODEL)
     return _model
 
 
@@ -88,7 +88,7 @@ def semantic_lookup(
 
     # -- Embed the query --------------------------------------------------
     model = _get_model()
-    query_embedding = model.encode(query).tolist()
+    query_embedding = list(model.embed(query))[0].tolist()
 
     # -- Build WHERE for relational filters --------------------------------
     conditions: list = [TweetEmbedding.embedding_model == EMBEDDING_MODEL]

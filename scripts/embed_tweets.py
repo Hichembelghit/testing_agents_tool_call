@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 from dotenv import load_dotenv
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -59,8 +59,7 @@ def get_tweets_without_embeddings(session: Session) -> list[tuple[str, str]]:
 
 def main() -> None:
     print(f"🔮  Loading model: {MODEL_NAME}")
-    model = SentenceTransformer(MODEL_NAME)
-    print(f"💻  Device: {model.device}")
+    model = TextEmbedding(MODEL_NAME)
 
     with get_session() as session:
         rows = get_tweets_without_embeddings(session)
@@ -92,11 +91,7 @@ def main() -> None:
                     f"  🔮  Encoding {total_encoded + len(ids):,}/{total:,}  "
                     f"(batch of {len(ids)})..."
                 )
-                embeddings = model.encode(
-                    texts,
-                    batch_size=ENCODE_BATCH_SIZE,
-                    show_progress_bar=False,
-                )
+                embeddings = list(model.embed(texts))
 
                 all_ids.extend(ids)
                 all_texts.extend(texts)

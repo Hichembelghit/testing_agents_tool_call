@@ -282,11 +282,11 @@ def insert_tweets(
 def _generate_embeddings(session, tweet_ids: list[str]) -> None:
     """Generate embeddings for the given tweet IDs."""
     try:
-        from sentence_transformers import SentenceTransformer
+        from fastembed import TextEmbedding
 
         MODEL_NAME = "all-MiniLM-L6-v2"
         print(f"🔮  Loading model: {MODEL_NAME}")
-        model = SentenceTransformer(MODEL_NAME)
+        model = TextEmbedding(MODEL_NAME)
 
         tweets = session.query(Tweet).filter(Tweet.id.in_(tweet_ids)).all()
 
@@ -298,7 +298,7 @@ def _generate_embeddings(session, tweet_ids: list[str]) -> None:
             return
 
         print(f"🔮  Encoding {len(texts)} tweet(s)...")
-        embeddings = model.encode(texts, show_progress_bar=False)
+        embeddings = list(model.embed(texts))
 
         session.add_all(
             [
