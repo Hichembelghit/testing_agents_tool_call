@@ -27,7 +27,7 @@ from db.models import Tweet, TweetEmbedding
 
 load_dotenv()
 
-MODEL_NAME = "all-MiniLM-L6-v2"  # 384-dim embeddings
+MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"  # 384-dim embeddings
 
 # ── Batch sizes ────────────────────────────────────────────────────
 # How many texts to feed the model in one forward pass.

@@ -22,7 +22,7 @@ from sqlalchemy import and_, select, true
 from db.models import Tweet, TweetEmbedding
 from tools.db import get_session
 
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
 
 # Lazy-loaded model (shared across calls)
 _model = None
