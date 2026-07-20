@@ -285,6 +285,7 @@ def _generate_embeddings(session, tweet_ids: list[str]) -> None:
         from fastembed import TextEmbedding
 
         MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+        DB_MODEL_NAME = "all-MiniLM-L6-v2"
         print(f"🔮  Loading model: {MODEL_NAME}")
         model = TextEmbedding(MODEL_NAME)
 
@@ -304,7 +305,7 @@ def _generate_embeddings(session, tweet_ids: list[str]) -> None:
             [
                 TweetEmbedding(
                     tweet_id=tid,
-                    embedding_model=MODEL_NAME,
+                    embedding_model=DB_MODEL_NAME,
                     embedded_text=text,
                     embedding=emb.tolist(),
                 )

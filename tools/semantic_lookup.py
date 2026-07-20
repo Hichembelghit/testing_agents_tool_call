@@ -23,6 +23,9 @@ from db.models import Tweet, TweetEmbedding
 from tools.db import get_session
 
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+# The name stored in the DB — keep this stable across library changes
+# so existing embeddings remain queryable.
+DB_EMBEDDING_MODEL = os.getenv("DB_EMBEDDING_MODEL", "all-MiniLM-L6-v2")
 
 # Lazy-loaded model (shared across calls)
 _model = None
@@ -91,7 +94,7 @@ def semantic_lookup(
     query_embedding = list(model.embed(query))[0].tolist()
 
     # -- Build WHERE for relational filters --------------------------------
-    conditions: list = [TweetEmbedding.embedding_model == EMBEDDING_MODEL]
+    conditions: list = [TweetEmbedding.embedding_model == DB_EMBEDDING_MODEL]
 
     if date_from:
         conditions.append(Tweet.date >= date_from)

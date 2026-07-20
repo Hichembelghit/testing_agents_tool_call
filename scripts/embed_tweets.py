@@ -27,7 +27,9 @@ from db.models import Tweet, TweetEmbedding
 
 load_dotenv()
 
-MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"  # 384-dim embeddings
+MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"  # fastembed model (384-dim)
+# Stable name stored in the DB — keeps existing embeddings queryable
+DB_MODEL_NAME = "all-MiniLM-L6-v2"
 
 # ── Batch sizes ────────────────────────────────────────────────────
 # How many texts to feed the model in one forward pass.
@@ -44,7 +46,7 @@ def get_tweets_without_embeddings(session: Session) -> list[tuple[str, str]]:
     # Subquery: tweet IDs that already have an embedding for this model
     already_embedded = (
         select(TweetEmbedding.tweet_id).where(
-            TweetEmbedding.embedding_model == MODEL_NAME
+            TweetEmbedding.embedding_model == DB_MODEL_NAME
         )
     ).scalar_subquery()
 
@@ -103,7 +105,7 @@ def main() -> None:
                 [
                     TweetEmbedding(
                         tweet_id=tid,
-                        embedding_model=MODEL_NAME,
+                        embedding_model=DB_MODEL_NAME,
                         embedded_text=text,
                         embedding=emb,
                     )
