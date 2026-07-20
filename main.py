@@ -58,7 +58,6 @@ while True:
             print(f"  [{t.id}]  {t.date}")
             print(f"          {_truncate(t.content, 80)}")
             print(f"          ♻ {t.retweets}  ★ {t.favorites}")
-            print()
     elif structured.count > 0:
         print(f"  ({structured.count} tweet{'s' if structured.count != 1 else ''} found)")
     else:

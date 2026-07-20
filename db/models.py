@@ -1,20 +1,11 @@
 """SQLAlchemy engine, session factory, and ORM models.
 
-Supports both sync (scripts, alembic) and async (tools) database access.
-
 Usage
 -----
-    # Sync (scripts)
     from db.models import get_session
 
     with get_session() as session:
         rows = session.query(Tweet).all()
-
-    # Async (tools)
-    from db.models import get_async_session
-
-    async with get_async_session() as session:
-        rows = (await session.execute(...)).scalars().all()
 
 Tables
 ------
@@ -23,17 +14,14 @@ Tables
 """
 
 import os
-import re
-from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column, ForeignKey, Index, Integer, String, Text, create_engine, func as sa_func
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
 
-# ── Sync engine & session (for scripts, alembic, setup_db) ────────
+# ── Engine & session ───────────────────────────────────────────────
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -53,32 +41,6 @@ def get_session():
             rows = session.query(...).all()
     """
     return SessionLocal()
-
-
-# ── Async engine & session (for tools — production concurrent ops) ─
-_ASYNC_PREFIX = "postgresql+asyncpg://"
-ASYNC_DATABASE_URL = re.sub(
-    r"^postgresql(\+psycopg2)?://", _ASYNC_PREFIX, DATABASE_URL
-)
-async_engine = create_async_engine(
-    ASYNC_DATABASE_URL, pool_size=10, pool_pre_ping=True
-)
-AsyncSessionLocal = async_sessionmaker(
-    bind=async_engine, class_=AsyncSession, expire_on_commit=False
-)
-
-
-@asynccontextmanager
-async def get_async_session():
-    """Return an async session context manager.
-
-    Usage::
-
-        async with get_async_session() as session:
-            rows = (await session.execute(stmt)).scalars().all()
-    """
-    async with AsyncSessionLocal() as session:
-        yield session
 
 
 class Base(DeclarativeBase):

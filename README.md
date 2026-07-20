@@ -2,7 +2,7 @@
 
 A LangChain agent that answers questions about Donald Trump's tweets using a **tool-call loop** pattern. The LLM decides which tool to call and when to answer directly — no hardcoded routing.
 
-> **Stack:** LangChain `create_agent` · DeepSeek V4 Flash · PostgreSQL + pgvector · SQLAlchemy (sync + async) · asyncpg · Sentence Transformers · FastAPI · Streamlit
+> **Stack:** LangChain `create_agent` · DeepSeek V4 Flash · PostgreSQL + pgvector · SQLAlchemy · Sentence Transformers · FastAPI · Streamlit
 
 ## Architecture
 
@@ -41,9 +41,9 @@ uv run streamlit run streamlit_app.py
 | `relational_lookup` | Deterministic SQL-style queries (date range, mentions, hashtags, engagement, counts, sorting) |
 | `semantic_lookup` | pgvector cosine similarity search over tweet content with optional metadata filters |
 
-### `relational_lookup` — Batched Concurrent Queries
+### `relational_lookup` — Batched Queries
 
-The relational lookup tool accepts **multiple operations in a single call** and executes them concurrently via `asyncio.gather()` over a single async database session. This avoids multiple round-trips when the agent needs several pieces of information at once.
+The relational lookup tool accepts **multiple operations in a single call** and executes them sequentially within one database session. This avoids multiple round-trips when the agent needs several pieces of information at once.
 
 **Supported operations:**
 | Operation | Returns |
@@ -64,9 +64,7 @@ The relational lookup tool accepts **multiple operations in a single call** and 
 }
 ```
 
-All three queries run concurrently in a single database session — total time ≈ max(query times), not sum.
-
-**Async infrastructure:** The tool uses `create_async_engine` with `asyncpg` for native async PostgreSQL I/O. The sync engine (`psycopg2`) is kept for scripts and Alembic migrations.
+All operations share a single session and connection — efficient for the connection pool.
 
 ## Setup
 
@@ -118,14 +116,14 @@ uv run python -m db.setup_db
 ├── streamlit_app.py             # Streamlit chat UI
 ├── response_models.py           # Pydantic schemas + JSON parser
 ├── db/
-│   ├── models.py                # ORM: sync + async engines, session factories, Tweet, TweetEmbedding
+│   ├── models.py                # ORM: engine, session, Tweet, TweetEmbedding
 │   └── setup_db.py              # CLI to create tables from scratch
 ├── alembic/
 │   ├── env.py                   # Alembic config (reads DATABASE_URL from .env)
 │   └── versions/                # Migration files
 ├── tools/
-│   ├── db.py                    # Shared sync session helper + utilities
-│   ├── relational_lookup.py     # @tool — batched concurrent SQL queries (asyncpg)
+│   ├── db.py                    # Shared session helper + utilities
+│   ├── relational_lookup.py     # @tool — batched SQL queries (Pydantic schema)
 │   └── semantic_lookup.py       # @tool — pgvector similarity search
 ├── scripts/                     # Utility scripts
 ├── pyproject.toml
