@@ -2,7 +2,7 @@
 
 A LangChain agent that answers questions about Donald Trump's tweets using a **tool-call loop** pattern. The LLM decides which tool to call and when to answer — no hardcoded routing.
 
-> **Stack:** LangChain `create_agent` · DeepSeek V4 Flash · PostgreSQL + pgvector · FastEmbed · SQLAlchemy · Streamlit / FastAPI / CLI
+> **Stack:** LangChain `create_agent` · DeepSeek V4 Flash · PostgreSQL + pgvector · FastEmbed · SQLAlchemy · Streamlit / CLI
 
 ---
 
@@ -45,7 +45,6 @@ uv run python scripts/embed_tweets.py
 # 8. Run!
 uv run python main.py                    # CLI
 uv run streamlit run streamlit_app.py    # Web UI (http://localhost:8501)
-uv run uvicorn api:app --reload          # API (http://localhost:8000)
 ```
 
 ### Or with Docker (one command, no installs needed)
@@ -80,7 +79,7 @@ No classifier, no planner, no hardcoded routing. The LLM owns the full decision 
 |---|---|
 | **CLI** | `uv run python main.py` |
 | **Streamlit** | `uv run streamlit run streamlit_app.py` |
-| **FastAPI** | `uv run uvicorn api:app --reload` |
+
 
 ---
 
@@ -111,7 +110,6 @@ No classifier, no planner, no hardcoded routing. The LLM owns the full decision 
 ```
 ├── agent.py                   # LangChain agent setup + system prompt
 ├── main.py                    # CLI entrypoint
-├── api.py                     # FastAPI server
 ├── streamlit_app.py           # Streamlit chat UI
 ├── response_models.py         # Pydantic schemas + JSON parser
 ├── db/
