@@ -93,7 +93,7 @@ class TweetEmbedding(Base):
     embedded_text = Column(Text, nullable=False)
     embedding = Column(Vector(384), nullable=False)
     created_at = Column(
-        TIMESTAMP(timezone=True), nullable=False, server_default=sa_func.text("now()")
+        TIMESTAMP(timezone=True), nullable=False, server_default=sa_func.now()
     )
 
     tweet = relationship("Tweet", back_populates="embeddings")

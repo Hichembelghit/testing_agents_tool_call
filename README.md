@@ -1,21 +1,80 @@
-# Tweet QA Agent — Tool-Call Pattern
+# 🐦 Tweet QA Agent
 
-A LangChain agent that answers questions about Donald Trump's tweets using a **tool-call loop** pattern. The LLM decides which tool to call and when to answer directly — no hardcoded routing.
+A LangChain agent that answers questions about Donald Trump's tweets using a **tool-call loop** pattern. The LLM decides which tool to call and when to answer — no hardcoded routing.
 
-> **Stack:** LangChain `create_agent` · DeepSeek V4 Flash · PostgreSQL + pgvector · SQLAlchemy · Sentence Transformers · FastAPI · Streamlit
+> **Stack:** LangChain `create_agent` · DeepSeek V4 Flash · PostgreSQL + pgvector · FastEmbed · SQLAlchemy · Streamlit / FastAPI / CLI
 
-## Architecture
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Python 3.12+
+- PostgreSQL 16+ with [pgvector](https://github.com/pgvector/pgvector)
+- A [DeepSeek API key](https://platform.deepseek.com)
+
+### Setup
+
+```bash
+# 1. Clone & enter
+git clone <repo-url>
+cd testing_agents_tool_call
+
+# 2. Install dependencies
+uv venv
+source .venv/bin/activate
+uv sync
+
+# 3. Configure
+cp .env.example .env
+# Edit .env → add your DEEPSEEK_API_KEY
+
+# 4. Create the database
+createdb tweets_rag
+
+# 5. Create tables
+uv run python -m db.setup_db
+
+# 6. Load tweet data
+uv run python scripts/load_csv.py trump_tweets.csv
+
+# 7. Generate embeddings (FastEmbed — runs on CPU, no API key needed)
+uv run python scripts/embed_tweets.py
+
+# 8. Run!
+uv run python main.py                    # CLI
+uv run streamlit run streamlit_app.py    # Web UI (http://localhost:8501)
+uv run uvicorn api:app --reload          # API (http://localhost:8000)
+```
+
+### Or with Docker (one command, no installs needed)
+
+```bash
+docker compose up --build
+```
+
+This starts PostgreSQL + pgvector, creates tables, loads tweets, generates embeddings (FastEmbed on CPU), and launches Streamlit at `http://localhost:8080` — all automatically.
+
+---
+
+## How It Works
 
 ```
 User question → create_agent loop:
-    LLM decides → calls relational_lookup or semantic_lookup → LLM reads result → calls again or answers
+    LLM decides → calls relational_lookup and/or semantic_lookup → reads results → answers
 ```
 
-No classifier, no planner, no judgment node. The LLM owns the full decision loop.
+No classifier, no planner, no hardcoded routing. The LLM owns the full decision loop.
 
-Structured output is returned as a `` ```json `` block in the agent's response, parsed by `AgentResponse.from_json_block()`.
+### Tools
 
-## Interfaces
+| Tool | What it does |
+|---|---|
+| `relational_lookup` | SQL queries by metadata (dates, counts, hashtags, mentions, engagement, sorting). Supports **batched operations** in one call. |
+| `semantic_lookup` | pgvector similarity search over tweet content (by topic/theme), with optional metadata filters. |
+
+### Interfaces
 
 | Interface | Command |
 |---|---|
@@ -23,137 +82,50 @@ Structured output is returned as a `` ```json `` block in the agent's response, 
 | **Streamlit** | `uv run streamlit run streamlit_app.py` |
 | **FastAPI** | `uv run uvicorn api:app --reload` |
 
-### Running Streamlit
-
-```bash
-# From the project root:
-uv run streamlit run streamlit_app.py
-
-# The app opens in your browser at http://localhost:8501
-# Type a question about Trump's tweets and see the agent's response
-# with tweet IDs, content, retweets, and favorites.
-```
-
-## Tools
-
-| Tool | Description |
-|---|---|
-| `relational_lookup` | Deterministic SQL-style queries (date range, mentions, hashtags, engagement, counts, sorting) |
-| `semantic_lookup` | pgvector cosine similarity search over tweet content with optional metadata filters |
-
-### `relational_lookup` — Batched Queries
-
-The relational lookup tool accepts **multiple operations in a single call** and executes them sequentially within one database session. This avoids multiple round-trips when the agent needs several pieces of information at once.
-
-**Supported operations:**
-| Operation | Returns |
-|---|---|
-| `select` (default) | Matching tweet rows with optional sorting and limit |
-| `count` | Total row count matching the filters |
-| `aggregate` | Count + average/sum of retweets and favorites |
-| `fetch_by_ids` | Specific tweets by their IDs |
-
-**Example — batched call:**
-```json
-{
-  "operations": [
-    {"operation": "count", "date_from": "2020-01-01", "date_to": "2021-01-01"},
-    {"operation": "select", "order_by": "retweets", "limit": 3},
-    {"operation": "aggregate", "min_favorites": 100}
-  ]
-}
-```
-
-All operations share a single session and connection — efficient for the connection pool.
-
-## Setup
-
-```bash
-# Create a virtual environment and install dependencies
-uv venv
-source .venv/bin/activate
-uv sync
-
-# Copy and fill in your credentials
-cp .env.example .env
-
-# Run the agent (choose your interface)
-uv run python main.py
-```
-
-## Database Migrations
-
-Alembic is configured for schema changes:
-
-```bash
-# Generate a new migration after model changes
-uv run alembic revision --autogenerate -m "description"
-
-# Apply pending migrations
-uv run alembic upgrade head
-
-# Create tables from scratch (no existing DB)
-uv run python -m db.setup_db
-```
-
-## Deployment
-
-### Local testing with Docker
-
-```bash
-# Make sure .env has your Supabase DATABASE_URL
-docker compose up --build
-```
-
-Streamlit starts on `http://localhost:8080` and connects directly to your Supabase database.
-
-### DigitalOcean App Platform
-
-1. **Push the repo** to GitHub/GitLab.
-2. **Create a new App** in the DO App Platform, connect your repo.
-3. **Set environment variables:**
-   - `DATABASE_URL` — your Supabase connection string (`postgresql://user:pass@host:6543/postgres`)
-4. **Run migrations** via the DO Console:
-   ```bash
-   uv run alembic upgrade head
-   ```
-
-The `Dockerfile` auto-detects the `PORT` environment variable DO sets. No additional config needed.
-
-### Future — FastAPI
-
-A separate `Dockerfile.api` can be added later to deploy the FastAPI backend as a second service on DO App Platform.
+---
 
 ## Example Questions
 
-| Category | Example |
+| Type | Example |
 |---|---|
-| Count | `"How many tweets in 2019?"` |
-| Metadata | `"Top 10 most retweeted tweets"` |
-| Hashtag | `"Tweets with #MAGA sorted by favorites"` |
-| Semantic | `"What does Trump say about trade?"` |
-| Hybrid | `"What did Trump say about China in 2014?"` |
-| Hybrid | `"Most liked tweets about trade after 2016"` |
+| Count | _"How many tweets in 2019?"_ |
+| Metadata | _"Top 10 most retweeted tweets"_ |
+| Hashtag | _"Tweets with #MAGA sorted by favorites"_ |
+| Semantic | _"What does Trump say about trade?"_ |
+| Hybrid | _"What did Trump say about China in 2014?"_ |
+
+---
+
+## Scripts
+
+| Script | Purpose |
+|---|---|
+| `scripts/load_csv.py` | Load tweets from a CSV file into the database |
+| `scripts/embed_tweets.py` | Generate FastEmbed embeddings for tweets missing them |
+| `db/setup_db.py` | Create database tables from ORM models |
+
+---
 
 ## Project Structure
 
 ```
-├── agent.py                     # create_agent setup with system prompt
-├── main.py                      # CLI entrypoint
-├── api.py                       # FastAPI server
-├── streamlit_app.py             # Streamlit chat UI
-├── response_models.py           # Pydantic schemas + JSON parser
+├── agent.py                   # LangChain agent setup + system prompt
+├── main.py                    # CLI entrypoint
+├── api.py                     # FastAPI server
+├── streamlit_app.py           # Streamlit chat UI
+├── response_models.py         # Pydantic schemas + JSON parser
 ├── db/
-│   ├── models.py                # ORM: engine, session, Tweet, TweetEmbedding
-│   └── setup_db.py              # CLI to create tables from scratch
-├── alembic/
-│   ├── env.py                   # Alembic config (reads DATABASE_URL from .env)
-│   └── versions/                # Migration files
+│   ├── models.py              # ORM: engine, session, Tweet, TweetEmbedding
+│   └── setup_db.py            # CLI to create tables
 ├── tools/
-│   ├── db.py                    # Shared session helper + utilities
-│   ├── relational_lookup.py     # @tool — batched SQL queries (Pydantic schema)
-│   └── semantic_lookup.py       # @tool — pgvector similarity search
-├── scripts/                     # Utility scripts
+│   ├── db.py                  # Shared DB helpers
+│   ├── relational_lookup.py   # @tool — batched SQL metadata queries
+│   └── semantic_lookup.py     # @tool — pgvector similarity search
+├── scripts/
+│   ├── load_csv.py            # Load tweets from CSV
+│   └── embed_tweets.py        # Generate embeddings
+├── docker-compose.yml         # Docker setup with pgvector
+├── Dockerfile                 # Container image
 ├── pyproject.toml
 └── .env.example
 ```

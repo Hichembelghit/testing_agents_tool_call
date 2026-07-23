@@ -6,7 +6,7 @@ Usage
     python -m db.setup_db
 
 Requires ``DATABASE_URL`` in your ``.env`` file.
-Use Alembic for schema migrations in production.
+Use `alembic upgrade head` for schema migrations in production (if alembic is configured).
 """
 
 from db.models import engine

@@ -1,15 +1,49 @@
-# ── Local dev against Supabase ─────────────────────────────────────
+# ── Fully local dev with FastEmbed + pgvector ──────────────────────
 # Usage: docker compose up --build
 #
-# Your .env file must have DATABASE_URL set to your Supabase
-# connection string (postgresql://user:pass@host:6543/postgres).
+# No external services needed — FastEmbed runs on CPU locally and
+# PostgreSQL with pgvector runs in a container alongside the app.
 
 services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tweets
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-net
+
   streamlit:
     build: .
     ports:
       - "8080:8080"
+    restart: on-failure
     env_file:
       - .env
     environment:
       - PORT=8080
+      - PYTHONUNBUFFERED=1
+      # Overrides DATABASE_URL from .env — connects to the local pgvector container
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/tweets
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-net
+
+volumes:
+  pgdata:
+
+networks:
+  app-net:
+    driver: bridge
